@@ -2,9 +2,11 @@
 from setuptools import setup
 
 setup(
-    name='sapphire-kv',
+    name='sapphire',
     
     version='0.9_dev_2',
+
+    namespace_packages = ['sapphire'],
     
     packages=['sapphire',
               'sapphire.core',
