@@ -142,3 +142,35 @@ class Subscriber(threading.Thread):
         self.subscriber.unsubscribe()
 
 
+class Requester(threading.Thread):
+    def __init__(self, object_manager):
+        super(Requester, self).__init__()
+
+        self.object_manager = object_manager
+
+        self._running = True
+        self.daemon = True
+        self.start()
+
+    def run(self):
+        try:
+            while self._running:
+                try:
+                    time.sleep(2.0)
+
+                    self.object_manager.request_objects()
+
+                except Exception as e:
+                    logging.exception("ObjectRequester unexpected exception: %s", str(e))
+
+        except Exception as e:
+            logging.critical("ObjectRequester failed with: %s", str(e))
+
+        logging.info("ObjectRequester stopped")
+
+    def stop(self):
+        self._running = False
+        
+
+
+

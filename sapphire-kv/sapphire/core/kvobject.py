@@ -19,7 +19,7 @@ import collections
 import origin
 from kvevent import KVEvent, SIGNAL_RECEIVED_KVEVENT, SIGNAL_SENT_KVEVENT
 import queryable
-from pubsub import Publisher, Subscriber
+from pubsub import Publisher, Subscriber, Requester
 import json_codec
 from pydispatch import dispatcher
 import threading
@@ -195,22 +195,32 @@ class KVObject(object):
             else:
                 self.updated_at = timestamp
 
+    def batch_update(self, updates, timestamp=None):
+        with self._lock:
+            for k, v in updates.iteritems():
+                self._attrs[k] = v
+
+            if timestamp == None:
+                self.updated_at = datetime.utcnow()
+            else:
+                self.updated_at = timestamp
+    
     def publish(self):
         with self._lock:
             if self.is_originator():
-                #if self.object_id not in KVObjectsManager._objects:
-                logging.debug("Publishing object: %s" % (str(self)))
+                if self.object_id not in KVObjectsManager._objects:
+                    logging.debug("Publishing object: %s" % (str(self)))
 
-                # publish to exchange
-                try:
-                    KVObjectsManager._publisher.publish_method("publish", self)
+                    # publish to exchange
+                    try:
+                        KVObjectsManager._publisher.publish_method("publish", self)
 
-                except AttributeError:
-                    # publisher not running
-                    pass
+                    except AttributeError:
+                        # publisher not running
+                        pass
 
-                # add to objects registry
-                KVObjectsManager._objects[self.object_id] = self
+                    # add to objects registry
+                    KVObjectsManager._objects[self.object_id] = self
 
             self.updated_at = datetime.utcnow()
 
@@ -259,6 +269,7 @@ class KVObjectsManager(object):
     _objects = dict()
     _publisher = None
     _subscriber = None
+    _requester = None
     __lock = threading.RLock()
     
     @staticmethod
@@ -276,6 +287,7 @@ class KVObjectsManager(object):
 
             KVObjectsManager._publisher = Publisher(KVObjectsManager)
             KVObjectsManager._subscriber = Subscriber(KVObjectsManager)
+            KVObjectsManager._requester = Requester(KVObjectsManager)
 
             origin_obj = KVObject(collection="origin")
 
@@ -321,8 +333,7 @@ class KVObjectsManager(object):
         with KVObjectsManager.__lock:
             if obj.object_id in KVObjectsManager._objects:
                 # update object
-                for k, v in obj._attrs.iteritems():
-                    KVObjectsManager._objects[obj.object_id].update(k, v)
+                KVObjectsManager._objects[obj.object_id].batch_update(obj._attrs)
 
             else:
                 # add new object
@@ -379,11 +390,13 @@ class KVObjectsManager(object):
 
         KVObjectsManager._publisher.stop()
         KVObjectsManager._subscriber.stop()
+        KVObjectsManager._requester.stop()
 
     @staticmethod
     def join():        
         KVObjectsManager._publisher.join()
         KVObjectsManager._subscriber.join()
+        KVObjectsManager._requester.join()
 
 
 def start():
