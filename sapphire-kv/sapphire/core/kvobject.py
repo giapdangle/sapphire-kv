@@ -205,38 +205,46 @@ class KVObject(object):
             else:
                 self.updated_at = timestamp
     
-    def publish(self):
+    def put(self):
         with self._lock:
             if self.is_originator():
-                if self.object_id not in KVObjectsManager._objects:
-                    logging.debug("Publishing object: %s" % (str(self)))
+                #if self.object_id not in KVObjectsManager._objects:
+                logging.debug("Publishing object: %s" % (str(self)))
 
-                    # publish to exchange
-                    try:
-                        KVObjectsManager._publisher.publish_method("publish", self)
+                # publish to exchange
+                try:
+                    KVObjectsManager._publisher.publish_method("publish", self)
 
-                    except AttributeError:
-                        # publisher not running
-                        pass
+                except AttributeError:
+                    # publisher not running
+                    pass
 
-                    # add to objects registry
-                    KVObjectsManager._objects[self.object_id] = self
+                # add to objects registry
+                KVObjectsManager._objects[self.object_id] = self
 
-            self.updated_at = datetime.utcnow()
+    def publish(self):
+        self.notify()
 
-            # push events to exchange
-            try:
-                # check if there are events to publish
-                if len(self._pending_events) > 0:
-                    logging.debug("Pushing events: %s" % (str(self)))
-                    KVObjectsManager.send_events(self._pending_events.values())
+    def notify(self):
+        # check if new object, and publish if not
+        if self.object_id not in KVObjectsManager._objects:
+            self.put()
 
-                    # clear events
-                    self._pending_events = dict()
+        self.updated_at = datetime.utcnow()
 
-            except AttributeError:
-                # publisher not running
-                pass
+        # push events to exchange
+        try:
+            # check if there are events to publish
+            if len(self._pending_events) > 0:
+                logging.debug("Pushing events: %s" % (str(self)))
+                KVObjectsManager.send_events(self._pending_events.values())
+
+                # clear events
+                self._pending_events = dict()
+
+        except AttributeError:
+            # publisher not running
+            pass
 
     def _unpublish(self):
         with self._lock:
@@ -307,7 +315,7 @@ class KVObjectsManager(object):
         with KVObjectsManager.__lock:
             # publish all objects
             for o in KVObjectsManager._objects.values():
-                o.publish()
+                o.put()
 
     @staticmethod
     def unpublish_objects():
