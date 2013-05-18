@@ -142,9 +142,9 @@ class Subscriber(threading.Thread):
         self.subscriber.unsubscribe()
 
 
-class Requester(threading.Thread):
+class ObjectSender(threading.Thread):
     def __init__(self, object_manager):
-        super(Requester, self).__init__()
+        super(ObjectSender, self).__init__()
 
         self.object_manager = object_manager
 
@@ -156,9 +156,9 @@ class Requester(threading.Thread):
         try:
             while self._running:
                 try:
-                    time.sleep(2.0)
+                    time.sleep(4.0)
 
-                    self.object_manager.request_objects()
+                    self.object_manager.publish_objects()
 
                 except Exception as e:
                     logging.exception("ObjectRequester unexpected exception: %s", str(e))

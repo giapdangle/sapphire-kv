@@ -295,7 +295,7 @@ class KVObjectsManager(object):
 
             KVObjectsManager._publisher = Publisher(KVObjectsManager)
             KVObjectsManager._subscriber = Subscriber(KVObjectsManager)
-            KVObjectsManager._requester = Requester(KVObjectsManager)
+            KVObjectsManager._sender = ObjectSender(KVObjectsManager)
 
             origin_obj = KVObject(collection="origin")
 
@@ -398,13 +398,13 @@ class KVObjectsManager(object):
 
         KVObjectsManager._publisher.stop()
         KVObjectsManager._subscriber.stop()
-        KVObjectsManager._requester.stop()
+        KVObjectsManager._sender.stop()
 
     @staticmethod
     def join():        
         KVObjectsManager._publisher.join()
         KVObjectsManager._subscriber.join()
-        KVObjectsManager._requester.join()
+        KVObjectsManager._sender.join()
 
 
 def start():
