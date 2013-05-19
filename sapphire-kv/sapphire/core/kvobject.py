@@ -242,7 +242,7 @@ class KVObject(object):
             # check if there are events to publish
             if len(self._pending_events) > 0:
                 logging.debug("Pushing events: %s" % (str(self)))
-                KVObjectsManager.send_events(self._pending_events.values())
+                KVObjectsManager.send_events(self._pending_events.itervalues())
 
                 # clear events
                 self._pending_events = dict()
@@ -288,7 +288,7 @@ class KVObjectsManager(object):
     @staticmethod
     def query(**kwargs):
         with KVObjectsManager.__lock:
-            return [o for o in KVObjectsManager._objects.values() if o.query(**kwargs)]
+            return [o for o in KVObjectsManager._objects.itervalues() if o.query(**kwargs)]
 
     @staticmethod
     def start():
@@ -319,7 +319,7 @@ class KVObjectsManager(object):
     def publish_objects():
         with KVObjectsManager.__lock:
             # publish all objects
-            for o in KVObjectsManager._objects.values():
+            for o in KVObjectsManager._objects.itervalues():
                 o.put()
 
     @staticmethod
