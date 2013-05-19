@@ -148,15 +148,15 @@ class ObjectSender(threading.Thread):
 
         self.object_manager = object_manager
 
-        self._running = True
+        self._stop_event = threading.Event()
         self.daemon = True
         self.start()
 
     def run(self):
         try:
-            while self._running:
+            while not self._stop_event.is_set():
                 try:
-                    time.sleep(4.0)
+                    self._stop_event.wait(4.0)
 
                     self.object_manager.publish_objects()
 
@@ -169,7 +169,7 @@ class ObjectSender(threading.Thread):
         logging.info("ObjectRequester stopped")
 
     def stop(self):
-        self._running = False
+        self._stop_event.set()
         
 
 

@@ -19,7 +19,7 @@ import collections
 import origin
 from kvevent import KVEvent, SIGNAL_RECEIVED_KVEVENT, SIGNAL_SENT_KVEVENT
 import queryable
-from pubsub import Publisher, Subscriber, Requester
+from pubsub import Publisher, Subscriber, ObjectSender
 import json_codec
 from pydispatch import dispatcher
 import threading
@@ -98,7 +98,12 @@ class KVObject(object):
                 del d["origin_id"]
 
             if "updated_at" in d:
-                self.updated_at = datetime.strptime(d["updated_at"], "%Y-%m-%dT%H:%M:%S.%f")
+                try:
+                    self.updated_at = datetime.strptime(d["updated_at"], "%Y-%m-%dT%H:%M:%S.%f")
+
+                except ValueError:
+                    self.updated_at = datetime.strptime(d["updated_at"], "%Y-%m-%dT%H:%M:%S")  
+
                 del d["updated_at"]
 
             if "collection" in d:
