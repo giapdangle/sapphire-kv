@@ -343,7 +343,7 @@ class EventProcessor(threading.Thread):
 
         self._update_processors = []
 
-        for i in xrange(1):
+        for i in xrange(10):
             self._update_processors.append(ObjectUpdateProcessor(self._object_q))
 
         self._stop_event = threading.Event()
