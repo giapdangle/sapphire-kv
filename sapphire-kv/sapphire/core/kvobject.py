@@ -215,7 +215,7 @@ class KVObject(object):
 
             else:
                 raise KeyError
-
+    
     def update(self, key, value, timestamp=None):    
         with self._lock:
             self._attrs[key] = value
