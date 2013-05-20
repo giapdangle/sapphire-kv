@@ -121,10 +121,10 @@ class KVObject(object):
     def from_json(self, j):
         return self.from_dict(json_codec.Decoder().decode(j))
 
-    def post_event(self, event):
+    def _post_event(self, event):
         self._event_q.put(event)
 
-    def apply_events(self):
+    def _apply_events(self):
         events = list()
 
         with self._lock:
@@ -310,9 +310,6 @@ class ObjectUpdateProcessor(threading.Thread):
 
         self.start()
 
-    def post_updates(self, updates):
-        pass
-
     def run(self):
         while not self._stop_event.is_set():  
             try:
@@ -320,7 +317,7 @@ class ObjectUpdateProcessor(threading.Thread):
                 obj = self._object_q.get()
 
                 # run batch update on object
-                obj.apply_events()
+                obj._apply_events()
 
             except KeyError:
                 pass
@@ -363,7 +360,7 @@ class EventProcessor(threading.Thread):
 
                 # process events
                 for ev in events:
-                    ev.kvobject.post_event(ev)
+                    ev.kvobject._post_event(ev)
 
                     updates[ev.kvobject.object_id] = ev.kvobject
 
