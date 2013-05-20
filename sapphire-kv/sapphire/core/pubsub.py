@@ -51,7 +51,7 @@ class Publisher(threading.Thread):
         try:
             while self._running or not self._queue.empty():
                 try:
-                    o = self._queue.get(True, 1.0)
+                    o = self._queue.get()
 
                     self.client.publish("sapphire_objects", o)
 
@@ -72,6 +72,7 @@ class Publisher(threading.Thread):
         logging.info("ObjectPublisher stopped")
 
     def stop(self):
+        self._queue.put(0)
         self._running = False
 
 
@@ -87,24 +88,28 @@ class Subscriber(threading.Thread):
         self.start()
 
     def _process_msg(self, msg):
-        # check origin
-        if msg["origin_id"] == origin.id:
-            # don't process messages from us
-            return
-        
-        # check methods
-        if msg["method"] == "publish":
-            self.object_manager.update(msg["data"])
-        
-        elif msg["method"] == "events":
-            self.object_manager.receive_events(msg["data"])
+        try:
+            # check origin
+            if msg["origin_id"] == origin.id:
+                # don't process messages from us
+                return
+            
+            # check methods
+            if msg["method"] == "publish":
+                self.object_manager.update(msg["data"])
+            
+            elif msg["method"] == "events":
+                self.object_manager.receive_events(msg["data"])
 
-        elif msg["method"] == "delete":
-            self.object_manager.delete(msg["data"]["object_id"])
+            elif msg["method"] == "delete":
+                self.object_manager.delete(msg["data"]["object_id"])
 
-        elif msg["method"] == "request_objects":
-            logging.debug("Received request for objects")
-            self.object_manager.publish_objects()
+            elif msg["method"] == "request_objects":
+                logging.debug("Received request for objects")
+                self.object_manager.publish_objects()
+
+        except TypeError:
+            pass
         
     def run(self):
         logging.info("ObjectSubscriber started, server: %s" % (settings.BROKER_HOST))

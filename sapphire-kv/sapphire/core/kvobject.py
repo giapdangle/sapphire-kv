@@ -23,6 +23,8 @@ from pubsub import Publisher, Subscriber, ObjectSender
 import json_codec
 from pydispatch import dispatcher
 import threading
+from Queue import Queue, Empty
+import time
 import settings
 
 
@@ -71,6 +73,7 @@ class KVObject(object):
 
         self._attrs = kwargs
         self._pending_events = dict()
+        self._event_q = Queue()
 
     def to_dict(self):
         with self._lock:
@@ -117,6 +120,28 @@ class KVObject(object):
 
     def from_json(self, j):
         return self.from_dict(json_codec.Decoder().decode(j))
+
+    def post_event(self, event):
+        self._event_q.put(event)
+
+    def apply_events(self):
+        events = list()
+
+        with self._lock:
+            # process list of events into updates
+            updates = dict()
+
+            while not self._event_q.empty():
+                ev = self._event_q.get(block=False)
+
+                events.append(ev)
+                updates[ev.key] = ev.value
+
+            # run batch update on object
+            self.batch_update(updates)
+            
+        for ev in events:
+            ev.receive()
 
     def __str__(self):
         with self._lock:
@@ -201,15 +226,9 @@ class KVObject(object):
                 self.updated_at = timestamp
 
     def batch_update(self, updates, timestamp=None):
-        with self._lock:
-            for k, v in updates.iteritems():
-                self._attrs[k] = v
+        for k, v in updates.iteritems():
+            self.update(k, v, timestamp=timestamp)
 
-            if timestamp == None:
-                self.updated_at = datetime.utcnow()
-            else:
-                self.updated_at = timestamp
-    
     def put(self):
         with self._lock:
             if self.is_originator():
@@ -227,6 +246,7 @@ class KVObject(object):
                 # add to objects registry
                 KVObjectsManager._objects[self.object_id] = self
 
+    # deprecated
     def publish(self):
         self.notify()
 
@@ -242,7 +262,7 @@ class KVObject(object):
             # check if there are events to publish
             if len(self._pending_events) > 0:
                 logging.debug("Pushing events: %s" % (str(self)))
-                KVObjectsManager.send_events(self._pending_events.itervalues())
+                KVObjectsManager.send_events(self._pending_events.values())
 
                 # clear events
                 self._pending_events = dict()
@@ -278,17 +298,106 @@ class KVObject(object):
             return self.origin_id == origin.id
 
 
+class ObjectUpdateProcessor(threading.Thread):
+    def __init__(self, object_q=None):
+        super(ObjectUpdateProcessor, self).__init__()
+
+        self._object_q = object_q
+
+        self._stop_event = threading.Event()
+
+        self.daemon = True
+
+        self.start()
+
+    def post_updates(self, updates):
+        pass
+
+    def run(self):
+        while not self._stop_event.is_set():  
+            try:
+                # get work from queue
+                obj = self._object_q.get()
+
+                # run batch update on object
+                obj.apply_events()
+
+            except KeyError:
+                pass
+
+            except TypeError:
+                pass
+
+            except:
+                pass
+
+    def stop(self):
+        self._stop_event.set()
+
+class EventProcessor(threading.Thread):
+    def __init__(self):
+        super(EventProcessor, self).__init__()
+
+        self._event_q = Queue()
+        self._object_q = Queue()
+
+        self._update_processors = []
+
+        for i in xrange(1):
+            self._update_processors.append(ObjectUpdateProcessor(self._object_q))
+
+        self._stop_event = threading.Event()
+
+        self.start()
+
+    def post_events(self, events):
+        self._event_q.put(events)
+
+    def run(self):
+        while not self._stop_event.is_set():    
+            try:
+                # get events from the queue
+                events = self._event_q.get()
+
+                updates = dict()
+
+                # process events
+                for ev in events:
+                    ev.kvobject.post_event(ev)
+
+                    updates[ev.kvobject.object_id] = ev.kvobject
+
+                for k, v in updates.iteritems():
+                    self._object_q.put(v)
+
+            except Empty:
+                pass
+
+            except TypeError:
+                pass
+
+    def stop(self):
+        self._stop_event.set()
+        self._event_q.put(0)
+
+
 class KVObjectsManager(object):
     _objects = dict()
     _publisher = None
     _subscriber = None
     _requester = None
+    _event_processor = None
     __lock = threading.RLock()
     
     @staticmethod
     def query(**kwargs):
         with KVObjectsManager.__lock:
             return [o for o in KVObjectsManager._objects.itervalues() if o.query(**kwargs)]
+
+    @staticmethod
+    def get(object_id):
+        with KVObjectsManager.__lock:
+            return KVObjectsManager._objects[object_id]
 
     @staticmethod
     def start():
@@ -301,6 +410,7 @@ class KVObjectsManager(object):
             KVObjectsManager._publisher = Publisher(KVObjectsManager)
             KVObjectsManager._subscriber = Subscriber(KVObjectsManager)
             KVObjectsManager._sender = ObjectSender(KVObjectsManager)
+            KVObjectsManager._event_processor = EventProcessor()
 
             origin_obj = KVObject(collection="origin")
 
@@ -342,17 +452,16 @@ class KVObjectsManager(object):
     def update(data):
         # reconstruct object
         obj = KVObject().from_dict(data)
+    
+        if obj.object_id in KVObjectsManager._objects:
+            # update object
+            KVObjectsManager._objects[obj.object_id].batch_update(obj._attrs)
 
-        with KVObjectsManager.__lock:
-            if obj.object_id in KVObjectsManager._objects:
-                # update object
-                KVObjectsManager._objects[obj.object_id].batch_update(obj._attrs)
-
-            else:
+        else:
+            with KVObjectsManager.__lock:
                 # add new object
                 KVObjectsManager._objects[obj.object_id] = obj
                 logging.debug("Received new object: %s" % (str(obj)))
-        
 
     @staticmethod
     def receive_events(events):
@@ -363,19 +472,28 @@ class KVObjectsManager(object):
         events_temp = list()
         for event in events:
             if not isinstance(event, KVEvent):
+                # build event object from dictionary
                 event = KVEvent().from_dict(event)
+
+                # attach object to event
+                event.kvobject = KVObjectsManager._objects[event.object_id]
 
             events_temp.append(event)
 
-        events = events_temp
+        # post list of events to processor
+        KVObjectsManager._event_processor.post_events(events_temp)
 
+            #events_temp.append(event)
+
+        #events = events_temp
+
+        
+        """
         with KVObjectsManager.__lock:
             # update objects atomically
             for event in events:
                 try:
-                    # attach object to event
-                    event.kvobject = KVObjectsManager._objects[event.object_id]
-
+                    
                     # update object
                     event.kvobject.update(event.key, event.value, timestamp=event.timestamp)
 
@@ -385,6 +503,8 @@ class KVObjectsManager(object):
         # object lock released, fire events    
         for event in events:
             event.receive()
+        """
+
 
     @staticmethod
     def send_events(events):
@@ -404,12 +524,14 @@ class KVObjectsManager(object):
         KVObjectsManager._publisher.stop()
         KVObjectsManager._subscriber.stop()
         KVObjectsManager._sender.stop()
+        KVObjectsManager._event_processor.stop()
 
     @staticmethod
     def join():        
         KVObjectsManager._publisher.join()
         KVObjectsManager._subscriber.join()
         KVObjectsManager._sender.join()
+        KVObjectsManager._event_processor.join()
 
 
 def start():
