@@ -480,29 +480,6 @@ class KVObjectsManager(object):
         # post list of events to processor
         KVObjectsManager._event_processor.post_events(events_temp)
 
-            #events_temp.append(event)
-
-        #events = events_temp
-
-        
-        """
-        with KVObjectsManager.__lock:
-            # update objects atomically
-            for event in events:
-                try:
-                    
-                    # update object
-                    event.kvobject.update(event.key, event.value, timestamp=event.timestamp)
-
-                except KeyError:
-                    pass
-
-        # object lock released, fire events    
-        for event in events:
-            event.receive()
-        """
-
-
     @staticmethod
     def send_events(events):
         # check if events is iterable
