@@ -158,6 +158,8 @@ class ObjectSender(threading.Thread):
         self.start()
 
     def run(self):
+        logging.info("ObjectRequester started")
+
         try:
             while not self._stop_event.is_set():
                 try:
