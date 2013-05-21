@@ -151,6 +151,8 @@ def put_object_data(key=None):
     # publish to exchange
     obj.publish()
 
+    return ApiServerJsonEncoder().encode(obj)
+
 #########
 # PATCH
 #########
@@ -172,6 +174,8 @@ def patch_object_data(key=None):
 
     # publish to exchange
     obj.publish()
+
+    return ApiServerJsonEncoder().encode(obj)
 
 ##########
 # DELETE
