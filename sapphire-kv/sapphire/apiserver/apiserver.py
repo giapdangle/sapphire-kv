@@ -42,18 +42,10 @@ API_PATH = '/api/v0'
 def get_collections():
     all_objs = KVObjectsManager.query(all=True)
 
-    collections = [o.collection for o in all_objs]
+    collections = [o.collection for o in all_objs if o.collection is not None]
 
     # return uniquified list
     return list(set(collections))
-
-def get_items(collection, **query_dict):
-    if len(query_dict) > 0:
-        items = KVObjectsManager.query(collection=collection, **query_dict)
-    else:
-        items = KVObjectsManager.query(collection=collection)
-
-    return items
 
 class ApiServerJsonEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -66,64 +58,64 @@ class ApiServerJsonEncoder(json.JSONEncoder):
         else:
             return super(ApiServerJsonEncoder, self).default(obj)
 
+################
+# Static Files
+################
 
 @bottle.get('/')
-@bottle.get('/<file>')
-def index(file=None):
-    if not file:
+@bottle.get('/<filename>')
+def index(filename=None):
+    if not filename:
         return bottle.static_file("index.html", root=API_SERVER_STATIC_ROOT)
 
-    return bottle.static_file(file, root=API_SERVER_STATIC_ROOT)
+    return bottle.static_file(filename, root=API_SERVER_STATIC_ROOT)
 
-
-@bottle.get(API_PATH + '/debug')
-def get_debug():
-    import objgraph
-
-    return json.dumps(objgraph.typestats())
-
+#######
+# GET
+#######
 
 @bottle.get(API_PATH)
 def get_root_collection():
-    #return json.dumps(["objects", "events", "queries"])
-    return json.dumps(["objects", "events"])
+    return ApiServerJsonEncoder().encode(["collections", "objects", "events"])
 
-"""
-@bottle.get(API_PATH + '/queries')
-def get_query():
-    # check that there are query parameters
+@bottle.get(API_PATH + '/objects')
+def get_objects():
     if len(bottle.request.params) == 0:
-        return
+        items = KVObjectsManager.query(all=True)
 
-    collections = list_databases()
-    
-    results = list()
-
-    for collection in collections:
-        s = ApiStore('/objects', collection)
-        
-        filtered = [v for v in s.values() if v.query(**bottle.request.params)]
-
-        # run any query parameters
-        results.extend(filtered)
+    else:
+        items = KVObjectsManager.query(**bottle.request.params)
 
     bottle.response.set_header('Content-Type', 'application/json')
 
-    return ApiServerJsonEncoder().encode(results)
-"""
+    return ApiServerJsonEncoder().encode(items)
 
-@bottle.get(API_PATH + '/objects')
-def get_object_list_collection():
+@bottle.get(API_PATH + '/objects/<key>')
+def get_object_data(key=None):
+    items = KVObjectsManager.query(object_id=key)
+
+    if len(items) == 0:
+        bottle.abort(404, "Object not found")
+
+    bottle.response.set_header('Content-Type', 'application/json')
+
+    return ApiServerJsonEncoder().encode(items[0])
+
+@bottle.get(API_PATH + '/collections')
+def get_collection_list():
     collections = get_collections()
 
     bottle.response.set_header('Content-Type', 'application/json')
 
-    return json.dumps(collections)
+    return ApiServerJsonEncoder().encode(collections)
 
-
-@bottle.get(API_PATH + '/objects/<collection>')
+@bottle.get(API_PATH + '/collections/<collection>')
 def get_object_collection(collection=None):
-    items = get_items(collection, **bottle.request.params)
+    if len(bottle.request.params) == 0:
+        items = KVObjectsManager.query(collection=collection)
+
+    else:
+        items = KVObjectsManager.query(collection=collection, **bottle.request.params)
 
     if len(items) == 0:
         bottle.abort(404, "Collection not found")
@@ -133,8 +125,8 @@ def get_object_collection(collection=None):
     return ApiServerJsonEncoder().encode(items)
 
 
-@bottle.get(API_PATH + '/objects/<collection>/<key>')
-def get_object_data(collection=None, key=None):
+@bottle.get(API_PATH + '/collections/<collection>/<key>')
+def get_collection_object_data(collection=None, key=None):
     items = KVObjectsManager.query(collection=collection, object_id=key)
 
     if len(items) == 0:
@@ -144,40 +136,32 @@ def get_object_data(collection=None, key=None):
 
     return ApiServerJsonEncoder().encode(items[0])
 
-
-@bottle.put(API_PATH + '/objects/<collection>')
-@bottle.put(API_PATH + '/objects/<collection>/<key>')
-def put_object_data(collection=None, key=None):
+#######
+# PUT
+#######
+@bottle.put(API_PATH + '/objects')
+@bottle.put(API_PATH + '/objects/<key>')
+def put_object_data(key=None):
     if key:
-        obj = KVObject(object_id=key, collection=collection, **bottle.request.json)
+        obj = KVObject(object_id=key, **bottle.request.json)
 
     else:
-        obj = KVObject(object_id=collection, **bottle.request.json)
+        obj = KVObject(**bottle.request.json)
 
     # publish to exchange
     obj.publish()
 
-@bottle.route(API_PATH + '/objects/<collection>', method='patch')
-@bottle.route(API_PATH + '/objects/<collection>/<key>', method='patch')
+#########
+# PATCH
+#########
+@bottle.route(API_PATH + '/objects/<key>', method='patch')
 # NOTE: bottle does not have a shortcut path method, so route is used
-def patch_object_data(collection=None, key=None):
-    if key:
-        items = KVObjectsManager.query(object_id=key, collection=collection)
-
-    else:
-        items = KVObjectsManager.query(object_id=collection)
+def patch_object_data(key=None):
+    items = KVObjectsManager.query(object_id=key)
 
     # if new object
     if len(items) == 0:
         bottle.abort(404, "Object not found")
-
-        """
-        if key:
-            obj = KVObject(object_id=key, collection=collection, **bottle.request.json)
-
-        else:
-            obj = KVObject(object_id=collection, **bottle.request.json)
-        """
 
     else:
         obj = items[0]
@@ -189,24 +173,25 @@ def patch_object_data(collection=None, key=None):
     # publish to exchange
     obj.publish()
 
-
-@bottle.delete(API_PATH + '/objects/<collection>')
-@bottle.delete(API_PATH + '/objects/<collection>/<key>')
-def delete_object(collection=None, key=None):
-    if key:
-        items = KVObjectsManager.query(object_id=key, collection=collection)
-
-    else:
-        items = KVObjectsManager.query(object_id=collection)
+##########
+# DELETE
+##########
+@bottle.delete(API_PATH + '/objects/<key>')
+def delete_object(key=None):
+    items = KVObjectsManager.query(object_id=key)
 
     # check if object exists
     if len(items) == 0:
         bottle.abort(404, "Object not found")
 
     obj = items[0]
+
     obj.delete()
 
 
+#################
+# Event Channel
+#################
 class SessionReaper(threading.Thread):
     def __init__(self, session):
         super(SessionReaper, self).__init__()
@@ -228,7 +213,7 @@ def events_collection():
     # get session, this will automatically create the session
     # if it did not exist
     session = bottle.request.environ.get('beaker.session')
-    
+
     # check if there is a query for this session
     if "events" not in session:
         # create reaper for session

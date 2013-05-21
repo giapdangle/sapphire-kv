@@ -50,6 +50,7 @@ class Macro(threading.Thread):
         self.last_run = None
         self.running = True
         self.paused = True
+        self.daemon = True
 
         self._macros.append(self)
 
