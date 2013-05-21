@@ -80,11 +80,15 @@ def get_root_collection():
 
 @bottle.get(API_PATH + '/objects')
 def get_objects():
-    all_objects = KVObjectsManager.query(all=True)
+    if len(bottle.request.params) == 0:
+        items = KVObjectsManager.query(all=True)
+
+    else:
+        items = KVObjectsManager.query(**bottle.request.params)
 
     bottle.response.set_header('Content-Type', 'application/json')
 
-    return ApiServerJsonEncoder().encode(all_objects)
+    return ApiServerJsonEncoder().encode(items)
 
 @bottle.get(API_PATH + '/objects/<key>')
 def get_object_data(key=None):
@@ -107,7 +111,11 @@ def get_collection_list():
 
 @bottle.get(API_PATH + '/collections/<collection>')
 def get_object_collection(collection=None):
-    items = KVObjectsManager.query(collection=collection)
+    if len(bottle.request.params) == 0:
+        items = KVObjectsManager.query(collection=collection)
+
+    else:
+        items = KVObjectsManager.query(collection=collection, **bottle.request.params)
 
     if len(items) == 0:
         bottle.abort(404, "Collection not found")
@@ -205,7 +213,7 @@ def events_collection():
     # get session, this will automatically create the session
     # if it did not exist
     session = bottle.request.environ.get('beaker.session')
-    
+
     # check if there is a query for this session
     if "events" not in session:
         # create reaper for session

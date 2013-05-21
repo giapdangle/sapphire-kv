@@ -16,6 +16,7 @@ from datetime import datetime
 import origin
 
 import json_codec
+import queryable
 
 from pydispatch import dispatcher
 import threading
@@ -70,6 +71,14 @@ class KVEvent(object):
                  self.timestamp)
 
         return s
+
+    def query(self, **kwargs):
+        d = self.to_dict()
+
+        if queryable.query_dict(d, **kwargs):
+            return self
+
+        return None
 
     def to_dict(self):
         with self._lock:
