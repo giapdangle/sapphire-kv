@@ -100,7 +100,12 @@ class KVEvent(object):
             self.origin_id = d["origin_id"]
             self.key = d["key"]
             self.value = d["value"]
-            self.timestamp = datetime.strptime(d["timestamp"], "%Y-%m-%dT%H:%M:%S.%f")
+
+            try:
+                self.timestamp = datetime.strptime(d["timestamp"], "%Y-%m-%dT%H:%M:%S.%f")
+
+            except ValueError:
+                self.timestamp = datetime.strptime(d["timestamp"], "%Y-%m-%dT%H:%M:%S")                
 
         return self
 
