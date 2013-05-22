@@ -48,7 +48,6 @@ class KVObject(object):
         self.__dict__["object_id"] = None
         self.__dict__["origin_id"] = None
         self.__dict__["updated_at"] = None
-        self.__dict__["collection"] = None
         self.__dict__["_attrs"] = None
 
         if object_id:
@@ -66,21 +65,17 @@ class KVObject(object):
         else:
             self.updated_at = datetime.utcnow()
 
-        if collection:
-            self.collection = collection
-        else:
-            self.collection = None
-
         self._attrs = kwargs
         self._pending_events = dict()
         self._event_q = Queue()
+
+        self.set("collection", collection)
 
     def to_dict(self):
         with self._lock:
             d = {"object_id": self.object_id,
                  "origin_id": self.origin_id,
-                 "updated_at": self.updated_at.isoformat(),
-                 "collection": self.collection}
+                 "updated_at": self.updated_at.isoformat()}
 
             for k, v in self._attrs.iteritems():
                 d[k] = v
@@ -108,10 +103,6 @@ class KVObject(object):
                     self.updated_at = datetime.strptime(d["updated_at"], "%Y-%m-%dT%H:%M:%S")  
 
                 del d["updated_at"]
-
-            if "collection" in d:
-                self.collection = d["collection"]
-                del d["collection"]
 
             for k, v in d.iteritems():
                 self._attrs[k] = v
@@ -190,6 +181,10 @@ class KVObject(object):
 
     def set(self, key, value, timestamp=None):    
         with self._lock:
+            # check if key is already in the object dict
+            if key in self.__dict__:
+                raise KeyError
+
             # only add a new key if we are the originator of this object
             if (key in self._attrs) or \
                (key not in self._attrs and self.is_originator()):
@@ -216,8 +211,16 @@ class KVObject(object):
             else:
                 raise KeyError
     
+    def batch_set(self, updates, timestamp=None):
+        for k, v in updates.iteritems():
+            self.set(k, v, timestamp=timestamp)
+
     def update(self, key, value, timestamp=None):    
         with self._lock:
+            # check if key is already in the object dict
+            if key in self.__dict__:
+                raise KeyError
+
             self._attrs[key] = value
 
             if timestamp == None:

@@ -136,6 +136,19 @@ def get_collection_object_data(collection=None, key=None):
 
     return ApiServerJsonEncoder().encode(items[0])
 
+########
+# POST
+########
+@bottle.post(API_PATH + '/objects')
+def post_object():
+    # create new object with automatic key
+    obj = KVObject(object_id=None, origin_id=None, **bottle.request.json)
+
+    # publish to exchange
+    obj.publish()
+
+    return ApiServerJsonEncoder().encode(obj)
+
 #######
 # PUT
 #######
@@ -143,10 +156,23 @@ def get_collection_object_data(collection=None, key=None):
 @bottle.put(API_PATH + '/objects/<key>')
 def put_object_data(key=None):
     if key:
-        obj = KVObject(object_id=key, **bottle.request.json)
+        object_id = key
+
+    elif "object_id" in bottle.request.json:
+        object_id = bottle.request.json["object_id"]
 
     else:
-        obj = KVObject(**bottle.request.json)
+        bottle.abort(422, "Object ID required")
+
+    # query for existing object
+    items = KVObjectsManager.query(object_id=object_id)
+
+    if len(items) > 0:
+        # delete existing object
+        items[0].delete()
+
+    # create new object with key and parameters
+    obj = KVObject(object_id=object_id, **bottle.request.json)
 
     # publish to exchange
     obj.publish()
@@ -161,19 +187,22 @@ def put_object_data(key=None):
 def patch_object_data(key=None):
     items = KVObjectsManager.query(object_id=key)
 
-    # if new object
-    if len(items) == 0:
-        bottle.abort(404, "Object not found")
+    try:
+        # if new object
+        if len(items) == 0:
+            bottle.abort(404, "Object not found")
 
-    else:
-        obj = items[0]
+        else:
+            obj = items[0]
 
-        # update attributes
-        for k, v in bottle.request.json.iteritems():
-            obj.set(k, v)
+            # update attributes
+            obj.batch_set(bottle.request.json)
+            
+        # publish to exchange
+        obj.publish()
 
-    # publish to exchange
-    obj.publish()
+    except KeyError:
+        bottle.abort(422, "Cannot modify given parameters")
 
     return ApiServerJsonEncoder().encode(obj)
 
