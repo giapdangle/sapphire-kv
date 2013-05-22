@@ -161,19 +161,23 @@ def put_object_data(key=None):
 def patch_object_data(key=None):
     items = KVObjectsManager.query(object_id=key)
 
-    # if new object
-    if len(items) == 0:
-        bottle.abort(404, "Object not found")
+    try:
+        # if new object
+        if len(items) == 0:
+            bottle.abort(404, "Object not found")
 
-    else:
-        obj = items[0]
+        else:
+            obj = items[0]
 
-        # update attributes
-        for k, v in bottle.request.json.iteritems():
-            obj.set(k, v)
+            # update attributes
+            for k, v in bottle.request.json.iteritems():
+                obj.set(k, v)
 
-    # publish to exchange
-    obj.publish()
+        # publish to exchange
+        obj.publish()
+
+    except KeyError:
+        bottle.abort(422, "Cannot modify given parameters")
 
     return ApiServerJsonEncoder().encode(obj)
 
