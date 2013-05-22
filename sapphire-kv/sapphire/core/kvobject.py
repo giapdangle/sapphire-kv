@@ -211,6 +211,10 @@ class KVObject(object):
             else:
                 raise KeyError
     
+    def batch_set(self, updates, timestamp=None):
+        for k, v in updates.iteritems():
+            self.set(k, v, timestamp=timestamp)
+
     def update(self, key, value, timestamp=None):    
         with self._lock:
             # check if key is already in the object dict
