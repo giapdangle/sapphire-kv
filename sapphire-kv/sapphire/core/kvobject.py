@@ -221,12 +221,17 @@ class KVObject(object):
             if key in self.__dict__:
                 raise KeyError
 
-            self._attrs[key] = value
+            # check if changing
+            if self._attrs[key] != value:
 
-            if timestamp == None:
-                self.updated_at = datetime.utcnow()
-            else:
-                self.updated_at = timestamp
+                # set new value
+                self._attrs[key] = value
+
+                # set timestamp
+                if timestamp == None:
+                    self.updated_at = datetime.utcnow()
+                else:
+                    self.updated_at = timestamp
 
     def batch_update(self, updates, timestamp=None):
         for k, v in updates.iteritems():
