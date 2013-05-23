@@ -30,6 +30,7 @@ setup(
         "supervisor >= 3.0b1",
         "redis >= 2.7.2",
         "pydispatcher >= 2.0.3",
+        "paste >= 1.7.5.1",
     ]
 )
 
