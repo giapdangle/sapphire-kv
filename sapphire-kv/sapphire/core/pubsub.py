@@ -56,6 +56,11 @@ class Publisher(threading.Thread):
                     self.client.publish("sapphire_objects", o)
 
                 except redis.ConnectionError as e:
+                    # check if stop was requested
+                    if not self._running:
+                        # break loop so we can kill the thread
+                        break
+
                     logging.info("Unable to connect to server, retrying...")
                     logging.error(e)
                     time.sleep(4.0)
@@ -144,8 +149,12 @@ class Subscriber(threading.Thread):
     def stop(self):
         self._running = False
         
-        self.subscriber.unsubscribe()
+        try:
+            self.subscriber.unsubscribe()
 
+        except redis.ConnectionError:
+            pass
+            
 
 class ObjectSender(threading.Thread):
     def __init__(self, object_manager):
