@@ -64,8 +64,17 @@ class KVEvent(object):
 
     def __str__(self):
         with self._lock:
+            o_id = self.object_id
+
+            if self.kvobject:
+                try:
+                    o_id = self.kvobject.name
+
+                except:
+                    pass
+
             s = "Object:%20s Key:%16s Value:%16s Timestamp:%16s" % \
-                (self.object_id,
+                (o_id,
                  self.key,
                  self.value,
                  self.timestamp)
