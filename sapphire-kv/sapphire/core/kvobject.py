@@ -43,6 +43,10 @@ class KVObject(object):
 
         super(KVObject, self).__init__()
 
+        if not KVObjectsManager._initialized:
+            raise RuntimeError("KVObjectsManager not initialized")
+
+
         self.__dict__["_lock"] = threading.RLock()
         
         self.__dict__["object_id"] = None
@@ -394,6 +398,7 @@ class KVObjectsManager(object):
     _requester = None
     _event_processor = None
     __lock = threading.RLock()
+    _initialized = False
     
     @staticmethod
     def query(**kwargs):
@@ -408,6 +413,9 @@ class KVObjectsManager(object):
     @staticmethod
     def start():
         with KVObjectsManager.__lock:
+
+            KVObjectsManager._initialized = True
+
         # this lock is not really needed here, since the start() method
         # should only be called one time per process.
 

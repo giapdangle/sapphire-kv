@@ -125,7 +125,19 @@ class KVProcess(KVObject):
 
 if __name__ == "__main__":
 
-    from sapphire.core import *
+    #from sapphire.core import *
+
+    app.init()
+
+    for i in xrange(10):
+        a = KVProcess()
+        a.start()
+
+    app.run()
+    
+
+
+    """
     import time
 
     KVObjectsManager.start()
@@ -149,4 +161,7 @@ if __name__ == "__main__":
 
 
     KVObjectsManager.stop()
+    """
+
+
 

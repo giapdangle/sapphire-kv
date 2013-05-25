@@ -12,4 +12,5 @@
 
 from kvevent import KVEvent, SIGNAL_RECEIVED_KVEVENT, SIGNAL_SENT_KVEVENT
 from kvobject import KVObject, KVObjectsManager
+import app
 
