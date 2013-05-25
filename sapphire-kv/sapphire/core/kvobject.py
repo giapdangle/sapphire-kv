@@ -502,6 +502,15 @@ class KVObjectsManager(object):
             
     @staticmethod
     def stop():
+        # stop all KVProcesses
+        procs = KVObjectsManager.query(collection="processes")
+
+        for proc in procs:
+            proc.kill()
+
+        for proc in procs:
+            proc.join()
+
         KVObjectsManager.unpublish_objects()
 
         KVObjectsManager._publisher.stop()
