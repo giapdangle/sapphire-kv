@@ -12,10 +12,12 @@
 
 from sapphire.core import *
 
+from pydispatch import dispatcher
+from Queue import Queue
 import logging
-
 import threading
 import time
+import collections
 
 
 
@@ -43,9 +45,36 @@ class KVProcess(KVObject):
         self.running = False
         self._killed = False
 
+        self._event_q = None
+
+        # connect to event dispatcher
+        dispatcher.connect(self._receive_event, signal=SIGNAL_RECEIVED_KVEVENT)
+
         self._runner = _KVProcessRunner(self)
         self._runner.start()
 
+    def _receive_event(self, event):
+        if self._event_q:
+            self._event_q.put(event)
+
+    def receive_event(self, source=Query(all=True), keys=[], timeout=None):
+        if not self._event_q:
+            self._event_q = Queue(maxsize=256)
+
+        if not isinstance(keys, collections.Iterable):
+            keys = [keys]
+
+        while True:
+            event = self._event_q.get(True, timeout=timeout)
+
+            # filter event
+            if event.object_id not in [o.object_id for o in source()]:
+                continue
+
+            if event.key not in keys:
+                continue
+
+            return event
 
     def start(self):
         if self.is_running():
