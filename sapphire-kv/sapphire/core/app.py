@@ -10,14 +10,11 @@
 # </license>
 #
 
+from sapphire.core import *
+
 import sys
 import os
 import socket
-from sapphire.core import settings
-
-import macro
-from sapphire.core import KVObjectsManager, KVObject
-from sapphire.core import origin
 
 import logging
 import signal
@@ -32,60 +29,33 @@ import codecs
 sys.stdout = codecs.getwriter('utf-8')(sys.stdout) 
 
 
-#def sigterm_handler(signum, frame):
 def sigterm_handler():
     logging.info("Received SIGTERM")
-    #gevent.shutdown()
     sys.exit()
 
-def run(script_name=None):
+def init():
     settings.init()
 
+    KVObjectsManager.start()
+
+def run(script_name=None):
     if not script_name:
         script_name = sys.argv[0]
         
-    logging.info("Starting automaton script: %s" % (script_name))
+    logging.info("Starting: %s" % (script_name))
     logging.info("Process ID: %d" % (os.getpid()))
     logging.info("Origin ID: %s" % (origin.id))
 
     try:
-        KVObjectsManager.start()
-
-        script_control = KVObject(collection="automaton")
-        script_control.running = True
-        script_control.hostname = socket.gethostname()
-        script_control.scriptname = script_name
-
-        script_control.publish()
-
-        # wait some time for objects to arrive...
-        # this is not critical, but helps a bit for macros that run on startup
-        #time.sleep(2.0)
-
         # main script control loop
         while True:
-
-            macro.start()
-
-            while script_control.running:
-                time.sleep(1.0)
-
-            macro.pause()
-
-            logging.info("Automaton stopped by script control")
-
-            while not script_control.running:
-                time.sleep(1.0)                              
-
-            logging.info("Automaton started by script control")
+            time.sleep(1.0)
 
     except KeyboardInterrupt:
         logging.info("Shutdown requested")
 
     except SystemExit:
         logging.info("Shutdown requested by signal SIGTERM")
-
-    macro.stop()
 
     KVObjectsManager.stop()
     KVObjectsManager.join()

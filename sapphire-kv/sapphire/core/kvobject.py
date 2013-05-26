@@ -43,6 +43,10 @@ class KVObject(object):
 
         super(KVObject, self).__init__()
 
+        #if not KVObjectsManager._initialized:
+        #    raise RuntimeError("KVObjectsManager not initialized")
+
+
         self.__dict__["_lock"] = threading.RLock()
         
         self.__dict__["object_id"] = None
@@ -394,6 +398,7 @@ class KVObjectsManager(object):
     _requester = None
     _event_processor = None
     __lock = threading.RLock()
+    _initialized = False
     
     @staticmethod
     def query(**kwargs):
@@ -408,6 +413,13 @@ class KVObjectsManager(object):
     @staticmethod
     def start():
         with KVObjectsManager.__lock:
+
+            if KVObjectsManager._initialized:
+                raise RuntimeError("KVObjectsManager already running")
+
+
+            KVObjectsManager._initialized = True
+
         # this lock is not really needed here, since the start() method
         # should only be called one time per process.
 
@@ -502,6 +514,22 @@ class KVObjectsManager(object):
             
     @staticmethod
     def stop():
+        # stop all KVProcesses
+        procs = KVObjectsManager.query(collection="processes")
+
+        for proc in procs:
+            try:
+                # remote objects will not have this method
+                proc.kill()
+            except KeyError:
+                pass
+
+        for proc in procs:
+            try:
+                proc.join()
+            except KeyError:
+                pass
+
         KVObjectsManager.unpublish_objects()
 
         KVObjectsManager._publisher.stop()

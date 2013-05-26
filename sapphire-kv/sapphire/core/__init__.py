@@ -12,4 +12,9 @@
 
 from kvevent import KVEvent, SIGNAL_RECEIVED_KVEVENT, SIGNAL_SENT_KVEVENT
 from kvobject import KVObject, KVObjectsManager
+from query import Query
+from kvprocess import KVProcess
+
+
+import app
 

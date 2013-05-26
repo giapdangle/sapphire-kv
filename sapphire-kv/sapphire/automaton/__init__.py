@@ -19,3 +19,6 @@ from macro import *
 from query import Query
 from trigger import *
 
+#from sapphire.core import app
+#app.init()
+
