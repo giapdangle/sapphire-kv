@@ -163,7 +163,6 @@ class ObjectSender(threading.Thread):
         self.object_manager = object_manager
 
         self._stop_event = threading.Event()
-        self.daemon = True
         self.start()
 
     def run(self):

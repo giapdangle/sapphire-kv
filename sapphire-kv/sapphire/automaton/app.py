@@ -44,17 +44,17 @@ def run(script_name=None):
     if not script_name:
         script_name = sys.argv[0]
         
-    script_control = KVObject(collection="automaton")
-    script_control.running = True
-    script_control.hostname = socket.gethostname()
-    script_control.scriptname = script_name
-
     logging.info("Starting automaton script: %s" % (script_name))
     logging.info("Process ID: %d" % (os.getpid()))
     logging.info("Origin ID: %s" % (origin.id))
 
     try:
         KVObjectsManager.start()
+
+        script_control = KVObject(collection="automaton")
+        script_control.running = True
+        script_control.hostname = socket.gethostname()
+        script_control.scriptname = script_name
 
         script_control.publish()
 

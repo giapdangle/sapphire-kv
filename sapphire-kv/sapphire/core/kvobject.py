@@ -414,6 +414,10 @@ class KVObjectsManager(object):
     def start():
         with KVObjectsManager.__lock:
 
+            if KVObjectsManager._initialized:
+                raise RuntimeError("KVObjectsManager already running")
+
+
             KVObjectsManager._initialized = True
 
         # this lock is not really needed here, since the start() method
