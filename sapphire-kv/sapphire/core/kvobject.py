@@ -43,8 +43,8 @@ class KVObject(object):
 
         super(KVObject, self).__init__()
 
-        if not KVObjectsManager._initialized:
-            raise RuntimeError("KVObjectsManager not initialized")
+        #if not KVObjectsManager._initialized:
+        #    raise RuntimeError("KVObjectsManager not initialized")
 
 
         self.__dict__["_lock"] = threading.RLock()
@@ -518,10 +518,17 @@ class KVObjectsManager(object):
         procs = KVObjectsManager.query(collection="processes")
 
         for proc in procs:
-            proc.kill()
+            try:
+                # remote objects will not have this method
+                proc.kill()
+            except KeyError:
+                pass
 
         for proc in procs:
-            proc.join()
+            try:
+                proc.join()
+            except KeyError:
+                pass
 
         KVObjectsManager.unpublish_objects()
 

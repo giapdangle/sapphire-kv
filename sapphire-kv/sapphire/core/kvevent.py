@@ -73,7 +73,7 @@ class KVEvent(object):
                 except:
                     pass
 
-            s = "Object:%20s Key:%16s Value:%16s Timestamp:%16s" % \
+            s = "Obj:%20s Key:%24s Val:%16s Time:%16s" % \
                 (o_id,
                  self.key,
                  self.value,

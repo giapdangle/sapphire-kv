@@ -13,7 +13,7 @@
 from sapphire.core import *
 
 from pydispatch import dispatcher
-from Queue import Queue
+from Queue import Queue, Empty
 import logging
 import threading
 import time
@@ -57,7 +57,7 @@ class KVProcess(KVObject):
         if self._event_q:
             self._event_q.put(event)
 
-    def receive_event(self, source=Query(all=True), keys=[], timeout=None):
+    def receive_event(self, source=Query(all=True), keys=[], timeout=1.0):
         if not self._event_q:
             self._event_q = Queue(maxsize=256)
 
@@ -126,7 +126,12 @@ class KVProcess(KVObject):
             # run loop
             # runs until stop() or self.running == False
             while self.is_running():
-                self.loop()
+                try:
+                    self.loop()
+
+                # pass on queue empty exception
+                except Empty:
+                    pass
 
                 if not self.running:
                     try:
