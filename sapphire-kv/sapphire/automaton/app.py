@@ -56,7 +56,7 @@ def run(script_name=None):
         script_control.hostname = socket.gethostname()
         script_control.scriptname = script_name
 
-        script_control.publish()
+        script_control.notify()
 
         # wait some time for objects to arrive...
         # this is not critical, but helps a bit for macros that run on startup

@@ -263,10 +263,6 @@ class KVObject(object):
                 # add to objects registry
                 KVObjectsManager._objects[self.object_id] = self
 
-    # deprecated
-    def publish(self):
-        self.notify()
-
     def notify(self):
         # check if new object, and publish if not
         if self.object_id not in KVObjectsManager._objects:
@@ -281,12 +277,12 @@ class KVObject(object):
                 logging.debug("Pushing events: %s" % (str(self)))
                 KVObjectsManager.send_events(self._pending_events.values())
 
-                # clear events
-                self._pending_events = dict()
-
         except AttributeError:
             # publisher not running
             pass
+
+        # clear events
+        self._pending_events = dict()
 
     def _unpublish(self):
         with self._lock:
@@ -471,7 +467,7 @@ class KVObjectsManager(object):
             import socket
             origin_obj.hostname = socket.gethostname()
 
-            origin_obj.publish()
+            origin_obj.notify()
         
 
     @staticmethod
