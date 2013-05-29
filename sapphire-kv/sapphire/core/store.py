@@ -16,6 +16,7 @@ import sqlite3
 import json
 import datetime
 import os
+import threading
 
 from sapphire.core import queryable
 from sapphire.core.settings import get_app_dir
@@ -59,62 +60,70 @@ class StoreDict(DictMixin):
 
 
 class Store(DictMixin):
+    _lock = threading.RLock()
+
     def __init__(self, db_path=get_app_dir(), db_name=None):
         self.db_name = db_name
         self.db_path = db_path
         self.db_file = os.path.join(db_path, db_name)
 
-        self.conn = sqlite3.connect(self.db_file)
-        self.c = self.conn.cursor()
+        with Store._lock:
+            self.conn = sqlite3.connect(self.db_file)
+            self.c = self.conn.cursor()
 
-        self.c.execute('''CREATE TABLE IF NOT EXISTS kv_data (key, value)''')
+            self.c.execute('''CREATE TABLE IF NOT EXISTS kv_data (key, value)''')
 
-        self.commit()
+            self.commit()
 
     def commit(self):
-        self.conn.commit()
+        with Store._lock:
+            self.conn.commit()
 
     def keys(self):
-        self.c.execute('''SELECT key FROM kv_data''')
+        with Store._lock:
+            self.c.execute('''SELECT key FROM kv_data''')
 
-        return [key[0] for key in self.c.fetchall()]
+            return [key[0] for key in self.c.fetchall()]
 
     def __len__(self):
-        self.c.execute('''SELECT COUNT(*) FROM kv_data''')
+        with Store._lock:
+            self.c.execute('''SELECT COUNT(*) FROM kv_data''')
 
-        return self.c.fetchone()[0]
+            return self.c.fetchone()[0]
 
     def __getitem__(self, key):
-        self.c.execute('''SELECT value FROM kv_data WHERE key=?''', (key,))
+        with Store._lock:
+            self.c.execute('''SELECT value FROM kv_data WHERE key=?''', (key,))
 
-        value = self.c.fetchone()
+            value = self.c.fetchone()
 
-        if value == None:
-            raise KeyError
+            if value == None:
+                raise KeyError
 
-        return StoreDict(json.loads(value[0]))
+            return StoreDict(json.loads(value[0]))
 
     def __setitem__(self, key, value):
-        self.c.execute('''SELECT value FROM kv_data WHERE key=?''', (key,))
+        with Store._lock:
+            self.c.execute('''SELECT value FROM kv_data WHERE key=?''', (key,))
 
-        if not self.c.fetchone():
-            self.c.execute('''INSERT INTO kv_data VALUES (?,?)''', (key, StoreJsonEncoder().encode(value),))
+            if not self.c.fetchone():
+                self.c.execute('''INSERT INTO kv_data VALUES (?,?)''', (key, StoreJsonEncoder().encode(value),))
 
-        else:
-            self.c.execute('''UPDATE kv_data SET value=? WHERE key=?''', (StoreJsonEncoder().encode(value), key,))
+            else:
+                self.c.execute('''UPDATE kv_data SET value=? WHERE key=?''', (StoreJsonEncoder().encode(value), key,))
 
-        self.commit()
+            self.commit()
 
     def __delitem__(self, key):
-        value = self[key] # raises KeyError if key does not exist
+        with Store._lock:
+            value = self[key] # raises KeyError if key does not exist
 
-        self.c.execute('''DELETE FROM kv_data WHERE key=?''', (key,))
-        self.commit()
+            self.c.execute('''DELETE FROM kv_data WHERE key=?''', (key,))
+            self.commit()
 
     def delete(self):
-        os.remove(self.db_file)
-
-
+        with Store._lock:
+            os.remove(self.db_file)
 
 
 
