@@ -40,10 +40,12 @@ BROKER_HOST = "localhost"
 LOG_FILENAME = os.path.splitext(os.path.split(sys.argv[0])[1])[0] + ".log"
 LOG_PATH = get_app_dir()
 LOG_LEVEL = "info"
+OBJECT_TIME_TO_LIVE = 60
+OBJECT_PUBLISH_RATE = 4
 
 
 ###################
-# INTERVAL CONFIG #
+# INTERNAL CONFIG #
 ###################
 _SETTINGS_PATH = None
 _LOG_FILE_PATH = None

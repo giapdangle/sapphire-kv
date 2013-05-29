@@ -171,7 +171,7 @@ class ObjectSender(threading.Thread):
         try:
             while not self._stop_event.is_set():
                 try:
-                    self._stop_event.wait(4.0)
+                    self._stop_event.wait(settings.OBJECT_PUBLISH_RATE)
 
                     self.object_manager.publish_objects()
 
