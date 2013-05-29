@@ -53,6 +53,7 @@ class KVObject(object):
         self.__dict__["origin_id"] = None
         self.__dict__["updated_at"] = None
         self.__dict__["_attrs"] = None
+        self.__dict__["_ttl"] = settings.OBJECT_TIME_TO_LIVE
 
         if object_id:
             self.object_id = object_id
@@ -115,6 +116,9 @@ class KVObject(object):
 
     def from_json(self, j):
         return self.from_dict(json_codec.Decoder().decode(j))
+
+    def _reset_ttl(self):
+        self._ttl = settings.OBJECT_TIME_TO_LIVE
 
     def _post_event(self, event):
         self._event_q.put(event)
@@ -259,10 +263,6 @@ class KVObject(object):
                 # add to objects registry
                 KVObjectsManager._objects[self.object_id] = self
 
-    # deprecated
-    def publish(self):
-        self.notify()
-
     def notify(self):
         # check if new object, and publish if not
         if self.object_id not in KVObjectsManager._objects:
@@ -277,12 +277,12 @@ class KVObject(object):
                 logging.debug("Pushing events: %s" % (str(self)))
                 KVObjectsManager.send_events(self._pending_events.values())
 
-                # clear events
-                self._pending_events = dict()
-
         except AttributeError:
             # publisher not running
             pass
+
+        # clear events
+        self._pending_events = dict()
 
     def _unpublish(self):
         with self._lock:
@@ -391,12 +391,43 @@ class EventProcessor(threading.Thread):
         self._event_q.put(0)
 
 
+class TTLProcessor(threading.Thread):
+    def __init__(self):
+        super(TTLProcessor, self).__init__()
+
+        self.daemon = True
+    
+        self.start()
+
+    def run(self):
+        while True:
+            time.sleep(10.0)        
+
+            # query for all objects
+            all_objects = KVObjectsManager.query(all=True)
+
+            # get list of remote objects
+            remote_objects = [o for o in all_objects if o.origin_id != origin.id]
+
+            for obj in remote_objects:
+                # decrement time to live
+                obj._ttl -= 10
+
+                # check if expired
+                if obj._ttl < 0:
+                    logging.debug("Deleting expired object: %s" % (str(obj)))
+
+                    # delete object
+                    KVObjectsManager.delete(obj.object_id)
+
+
 class KVObjectsManager(object):
     _objects = dict()
     _publisher = None
     _subscriber = None
     _requester = None
     _event_processor = None
+    _ttl_processor = None
     __lock = threading.RLock()
     _initialized = False
     
@@ -413,6 +444,9 @@ class KVObjectsManager(object):
     @staticmethod
     def start():
         with KVObjectsManager.__lock:
+        # this lock is not really needed here, since the start() method
+        # should only be called one time per process.
+
 
             if KVObjectsManager._initialized:
                 raise RuntimeError("KVObjectsManager already running")
@@ -420,22 +454,20 @@ class KVObjectsManager(object):
 
             KVObjectsManager._initialized = True
 
-        # this lock is not really needed here, since the start() method
-        # should only be called one time per process.
-
             settings.init()
 
-            KVObjectsManager._publisher = Publisher(KVObjectsManager)
-            KVObjectsManager._subscriber = Subscriber(KVObjectsManager)
-            KVObjectsManager._sender = ObjectSender(KVObjectsManager)
-            KVObjectsManager._event_processor = EventProcessor()
+            KVObjectsManager._publisher         = Publisher(KVObjectsManager)
+            KVObjectsManager._subscriber        = Subscriber(KVObjectsManager)
+            KVObjectsManager._sender            = ObjectSender(KVObjectsManager)
+            KVObjectsManager._event_processor   = EventProcessor()
+            KVObjectsManager._ttl_processor     = TTLProcessor()
 
             origin_obj = KVObject(collection="origin")
 
             import socket
             origin_obj.hostname = socket.gethostname()
 
-            origin_obj.publish()
+            origin_obj.notify()
         
 
     @staticmethod
@@ -474,6 +506,9 @@ class KVObjectsManager(object):
         if obj.object_id in KVObjectsManager._objects:
             # update object
             KVObjectsManager._objects[obj.object_id].batch_update(obj._attrs)
+
+            # reset time to live
+            KVObjectsManager._objects[obj.object_id]._reset_ttl()
 
         else:
             with KVObjectsManager.__lock:
